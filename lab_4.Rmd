@@ -1,0 +1,176 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r}
+require(BSDA)
+library(BSDA)
+require(EnvStats)   
+library(EnvStats)
+```
+
+Ivan Nikolaichenko, Dmytro Hrebeniuk, Oleh Hykaviy
+
+### Generating the data
+
+```{r}
+
+n <- 6+6+9
+
+
+generate.a <- function(k){
+  return(k*log((k^2)*n+pi) - as.integer(k*log((k^2)*n+pi)))
+}
+
+k = seq(100)
+l = seq(101, 150)
+
+k.data = sapply(k, generate.a)
+l.data = sapply(l, generate.a)
+
+
+
+x.k = qnorm(k.data)
+y.k = qnorm(l.data)
+```
+
+## Problem1
+
+$$
+H_0\,: \mu_1 = \mu_2 \quad \textrm{vs.} \quad H_1\,:  \mu_1 \neq \mu_2 \,; \\
+\quad \sigma^2_1 = \sigma^2_2 = 1
+$$
+
+1)  We use two sided $z\mbox{ - test}$ , because the is $\sigma^2$ known and $\mu$ unknown
+
+2)  We know that $z(\mathbf x)$ is: $$
+    Z = Z(\mathbf X,\mathbf Y) := \sqrt{\frac{mn}{(m+n)}} \frac{\overline{\mathbf x} - \overline{\mathbf y}}{\sigma}
+    $$
+
+    The pi-value for this test is $p(\mathbf x,\mathbf y) = 2 \, \Phi(-|z(\mathbf x,\mathbf y)|)$
+
+```{r}
+sigma <- 1
+
+# the builded test
+
+z.test(x.k, y.k, sigma.x = sigma, sigma.y = sigma)
+
+# find it by ourselfs
+
+Z <- sqrt(100*50/(100+50))*(mean(x.k)-mean(y.k))/sigma
+cat("The z(x, y) is:", Z, "\n")
+
+
+pi.value <- 2*pnorm(-abs(Z))
+cat("The pi-value is:", pi.value)
+
+
+```
+
+```{r}
+cat("The 2.5%  quantile is", qnorm(0.025), "\n")
+cat("The 97.5% quantile is ", qnorm(0.975), "\n")
+cat("our z =", Z)
+```
+
+As we see, the z-value is between the percentiles, so we should not reject $H_0$ given $\alpha = 0.05$
+
+## Problem2
+
+$$
+ H_0\,: \sigma^2_1 = \sigma^2_2 \quad \textrm{vs.} \quad H_1\,: \sigma^2_1 > \sigma^2_2\,; \qquad \\ \mu_1 \textrm{ and } \mu_2 \textrm{ are unknown }
+$$
+
+1.We are using the f - test here(which is called var.test in R), because our $\mu_1$ and $\mu_2$ are unknown and we need to test variances of two samples.
+
+2.Under the null hypothesis, the test statistics $F(\mathbf X,\mathbf Y):= \frac{S_{\mathbf Y\mathbf Y}/(m-1)}{S_{\mathbf X\mathbf X}/(n-1)}$ has the Fischer distribution $\mathscr{F}_{m-1,n-1}.$ Obviously under 𝐻1, 𝐹 would assume smaller values. Thus the rejection region can be $$
+C_\alpha := \{ \mathbf x\in\mathbb R^n,\mathbf y\in\mathbb R^m \mid f(\mathbf x,\mathbf y)\le f_{\alpha} \}
+$$ where $f_\alpha$ is the quantile of level $\alpha$ for the Fischer distribution $\mathscr{F}_{n-1,m-1}$. In our case alpha is equal to 0,05.
+
+The $p$-value of the test is $F_{\mathscr{F}}(f(\mathbf x,\mathbf y))$
+
+```{r}
+f = var(y.k)/var(x.k)
+cat("Our f is", f)
+cat("\n")
+
+df1 = 49
+df2 = 99
+# pf(f, df1, df2, lower.tail = FALSE)
+
+var.test(y.k, x.k, alterantive="less")
+```
+
+As we can see, the $p$-value \> $\alpha$ (0,508 \> 0,05), so we should not reject the $H_0$
+
+```{r}
+cat("The 2.5%  quantile is", qf(0.025, df1, df2), "\n")
+cat("The 97.5% quantile is ", qf(0.975, df1, df2), "\n")
+cat("our f =", f)
+```
+
+As we see, the $f$ is between the percentiles, so we should not reject $H_0$ given $\alpha = 0.05$
+
+## Problem 3
+
+The Kolmogorov-Smirnov Test (K-S test) compares your data with a known distribution and lets you know if they have the same distribution. This K-S test is also convenient because it is based on the empirical distribution function.
+
+#### The Kolmogorov-Smirnov hypothesis :
+
+$H_0\,$: The data follow a specified distribution
+
+$H_a\,$: The data do not follow the specified distribution
+
+The Kolmogorov-Smirnov test statistic is defined as:
+
+$$d := sup_{t∈R}|\widehat{F_x}(t) - F_0(t)|$$
+
+And the rejection region is defined as: $$C_\alpha := \{\textbf{x}\in \mathbb{R}^n |\ d \geq d^{(n)}_{1-\alpha}\}$$ where $\alpha = 0.05$
+
+### a)
+
+$\left \{ x_{k} \right \}_{k=1}^{100}$ are normally distributed (with parameters calculated from the sample)
+
+```{r}
+ks.test(x.k, "pnorm")
+hist(x.k)
+```
+
+The p-value is much larger than our $\alpha = 0.05$ which is why we should not reject the null hypothesis and assume that our data is normally distributed.
+
+### b)
+
+$\{|x_k| \}^{100}_{k=1}$ are exponentially distributed with λ = 1
+
+```{r}
+ks.test(abs(x.k), "pexp")
+hist(abs(x.k))
+
+lambda = 1
+x <- rexp(100,rate = 1/mean(abs(x.k)))
+pts <- seq(-1,max(x),by=0.01)
+plot(ecdf(x),col="darkblue")
+lines(pts,pexp(pts,rate = lambda),col="red")
+
+```
+
+Because p-value is pretty larger than our $\alpha = 0.05$, we can assume that our data is not significantly different from exponential distribution distributed with λ = 1
+
+### c)
+
+$\{x_k \}^{100}_{k=1}$ and $\{y_k \}^{50}_{l=1}$ have the same distributions
+
+```{r}
+ks.test(x.k, y.k)
+plot(ecdf(x.k), col="red")
+lines(ecdf(y.k), col="green")
+
+```
+
+Because p-value is larger than our $\alpha = 0.05$, we can assume that our data follows y.k distribution
